@@ -4,7 +4,7 @@ Each test changes one condition from a base ticket, so only that condition can c
 """
 import unittest
 
-from triage import decide, normalize
+from triage import decide, normalize, triage_text
 
 
 def tk(**kw):
@@ -99,6 +99,43 @@ class Borders(unittest.TestCase):
 
     def test_nothing_matches_goes_to_human(self):
         self.assertEqual(self.d(tk(text="The colour is slightly different from the photo.")), "unclassified_human")
+
+
+class V2(unittest.TestCase):
+    """Added in v2, one per fix (see 3.3)."""
+    def d(self, t, **ctx):
+        return decide(t, **ctx)[0]
+
+    def test_gate_never_drops_without_a_reason(self):
+        t = tk(customer_id="", order_id="", seller_id="", source="", text="Please confirm who accepts correspondence.")
+        self.assertEqual(self.d(t), "unclassified_human")
+
+    def test_gate_drops_marketing(self):
+        t = tk(customer_id="", order_id="", seller_id="", source="exec_inbox", text="Join our webinar, register now.")
+        self.assertEqual(self.d(t), "gate_drop_spam")
+
+    def test_paraphrase_and_accents(self):
+        self.assertEqual(self.d(tk(text="They billed me two times for this.")), "auto_refund_duplicate_charge")
+        self.assertEqual(self.d(tk(text="J'ai été débitée deux fois.")), "auto_refund_duplicate_charge")
+        self.assertEqual(self.d(tk(text="Wants to return it, never opened, still in its plastic.")), "auto_refund_in_policy")
+
+    def test_negation(self):
+        self.assertEqual(self.d(tk(text="Not damaged or anything, it just stopped working. Refund?")), "elite_edge_case")
+
+    def test_cluster_only_pulls_item_complaints(self):
+        t = tk(text="It's not a fake, I love it. I just need a copy of the invoice.", seller_id="S-9")
+        self.assertEqual(self.d(t, flagged_sellers=frozenset({"S-9"})), "frontline_simple_request")
+
+    def test_history_keeps_the_open_case(self):
+        head = "ticket_id,created_at,source,customer_id,order_id,order_amount_usd,payment_method,carrier,seller_id,days_since_delivery,prior_contacts_30d,text\n"
+        day1 = head + "Y1,2026-06-01 10:00,direct_queue,C-1,#1,50,Card,SwiftShip,S-1,3,0,Charged twice for my order.\n"
+        day2 = head + "Y2,2026-06-02 10:00,direct_queue,C-1,#1,50,Card,SwiftShip,S-1,3,1,Resending as I got no reply.\n"
+        self.assertEqual(triage_text(day2)[1][0]["decision"], "unclassified_human")
+        self.assertEqual(triage_text(day2, day1)[1][0]["decision"], "merge_followup")
+
+    def test_missing_column_fails_loudly(self):
+        with self.assertRaises(ValueError):
+            triage_text("ticket_id,created_at,body\nZ1,2026-06-01,hello\n")
 
 
 if __name__ == "__main__":

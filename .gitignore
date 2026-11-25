@@ -2,3 +2,4 @@ output*.csv
 output*.txt
 __pycache__/
 .DS_Store
+eval/blind_*

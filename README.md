@@ -10,8 +10,9 @@ Drop a CSV, get the decisions in a table, download `output.csv`. The file never 
 **Run it locally** (Python 3, standard library only):
 
 ```bash
-python3 triage.py tickets.csv > output.csv      # counts per decision go to stderr
-python3 test_triage.py                          # edge-case tests on synthetic tickets
+python3 triage.py tickets.csv > output.csv                          # counts per decision go to stderr
+python3 triage.py today.csv --history last_30_days.csv > output.csv # daily runs: earlier tickets as context
+python3 test_triage.py                                              # edge-case tests on synthetic tickets
 ```
 
 The web page and the command line run the same `triage.py` (the page uses [Pyodide](https://pyodide.org)),
@@ -46,11 +47,25 @@ Design choices:
 - **Signals in English, Spanish, French and German.**
 - **Deterministic**: same file, same output. Two runs give zero changes.
 
+## How wrong it is (measured)
+
+| Test | v1 | v2 |
+|---|---|---|
+| Blind read of 63 of the case's 150 tickets (all elite + 3 per other decision) | 1 disagreement (T096, debatable) | same |
+| 40 invented tickets it never saw (`eval/heldout_b.csv`) | 40% wrong decisions; a legal notice dropped as spam | 25% wrong; every error goes to a person |
+| One batch per day instead of the whole week | 6 decisions change | 0 with `--history` |
+| Same file twice / shuffled rows | 0 changes | 0 changes |
+
+`eval/heldout_a.csv` was used to find the v1 errors (so v2 scores 0% on it, which proves nothing);
+`eval/heldout_b.csv` was kept aside and only used to measure. Remaining errors are mostly paraphrases the
+patterns do not know: the honest limit of keyword rules. Run `python3 eval/score_heldout.py eval/heldout_b.csv --detail`.
+
 ## Files
 
 - `triage.py`: the rules and the command line (`decide()` is a pure function of one ticket)
 - `test_triage.py`: edge cases on synthetic tickets (day 14 vs 15, $500 vs $500.01, injection vs refund…)
 - `index.html`: the web page
 - `sample_tickets.csv`: 16 invented tickets, one or more per layer
+- `eval/`: held-out sets (invented tickets with the expected decision), scoring and stability scripts
 
 The case's own ticket file is not included in this repository.
