@@ -43,8 +43,8 @@ Design choices:
 - **Risk runs before any automation.** A text that gives orders to an AI ("ignore previous instructions…") is
   treated as a risk signal, not an instruction. With no customer or order it is quarantined as phishing.
 - **Clusters come from the data**, not from ids written in the code: a seller becomes a counterfeit cluster
-  when the batch holds 3 or more claims against it.
-- **Signals in English, Spanish, French and German.**
+  when the batch (plus `--history`) holds 3 or more claims against it, and it only pulls complaints about the item.
+- **Signals in English, Spanish, French, German, Italian and Portuguese**, on text with accents and apostrophes folded, with a negation guard ("not damaged" is not damage).
 - **Deterministic**: same file, same output. Two runs give zero changes.
 
 ## How wrong it is (measured)
