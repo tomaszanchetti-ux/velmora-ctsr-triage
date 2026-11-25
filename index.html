@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velmora CTSR triage</title>
+<style>
+  :root {
+    --ink: #14213d; --muted: #5b6475; --line: #dfe3ea; --bg: #f7f6f2; --card: #fff;
+    --accent: #2f6fb3; --elite: #c8742c; --elite-bg: #fbeee2; --ok: #2e7d4f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+         color: var(--ink); background: var(--bg); }
+  main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 64px; }
+  .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-size: 32px; margin: 6px 0 8px; letter-spacing: -.01em; }
+  .lede { color: var(--muted); max-width: 760px; margin: 0 0 28px; }
+  .drop { border: 1.5px dashed #b8c1cf; border-radius: 12px; background: var(--card); padding: 22px;
+          display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .drop.over { border-color: var(--accent); background: #eef4fb; }
+  .drop p { margin: 0; flex: 1 1 320px; color: var(--muted); }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+                 padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+  button.primary, .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type=file] { display: none; }
+  #status { margin: 14px 2px 0; font-size: 13px; color: var(--muted); min-height: 20px; }
+  #status.err { color: #b3261e; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0 18px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .tile b { display: block; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 13px; }
+  .tile.elite b { color: var(--elite); }
+  .counts { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 28px; }
+  .counts .layer { grid-column: 1 / -1; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+                   color: var(--muted); margin-top: 8px; }
+  .counts .row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; cursor: pointer;
+                 padding: 2px 6px; border-radius: 6px; }
+  .counts .row:hover { background: #f0f2f6; }
+  .counts .row.yes .name { color: var(--elite); }
+  .counts .n { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 26px 0 10px; }
+  .bar select, .bar input[type=search] { font: inherit; padding: 7px 10px; border: 1px solid var(--line);
+                                         border-radius: 8px; background: var(--card); }
+  .bar input[type=search] { flex: 1 1 220px; }
+  .bar label { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+  .bar .spacer { flex: 1; }
+  #shown { color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line);
+          border-radius: 12px; overflow: hidden; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: #fafbfc; }
+  tr.yes td { background: var(--elite-bg); }
+  td.id { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+  td.dec { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  td.el { font-weight: 600; }
+  tr.yes td.el { color: var(--elite); }
+  td.txt { color: var(--muted); max-width: 520px; }
+  td.rule { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+  .hidden { display: none; }
+  footer { margin-top: 36px; color: var(--muted); font-size: 13px; }
+  footer a { color: var(--accent); }
+  @media (max-width: 720px) { .tiles { grid-template-columns: 1fr; } td.txt, td.rule, th.txt, th.rule { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Velmora · CTSR queue</div>
+  <h1>Ticket triage</h1>
+  <p class="lede">Drop a ticket export (CSV) and get one decision per ticket, following the layers of the design:
+    gate, risk, one case, escalation rule, fix the cause, elite. Rules decide; nothing in a ticket's text can change them.</p>
+
+  <div class="drop" id="drop">
+    <p><strong>Drop a CSV here</strong> or choose a file. Columns: ticket_id, created_at, source, customer_id, order_id,
+      order_amount_usd, payment_method, carrier, seller_id, days_since_delivery, prior_contacts_30d, text.</p>
+    <label class="btn primary" for="file" id="pick">Choose CSV</label>
+    <input type="file" id="file" accept=".csv,text/csv">
+    <button id="sample">Try a sample</button>
+  </div>
+  <div id="status">Loading Python in your browser…</div>
+
+  <section id="results" class="hidden">
+    <div class="tiles">
+      <div class="tile"><b id="t-total">0</b><span>tickets in · same number out</span></div>
+      <div class="tile"><b id="t-out">0</b><span>leave CTSR (routed, merged, solved by a rule)</span></div>
+      <div class="tile elite"><b id="t-elite">0</b><span>need an elite agent</span></div>
+    </div>
+    <div class="counts" id="counts"></div>
+
+    <div class="bar">
+      <select id="f-dec"><option value="">All decisions</option></select>
+      <label><input type="checkbox" id="f-elite"> Elite only</label>
+      <input type="search" id="f-q" placeholder="Search ticket id or text">
+      <span class="spacer"></span>
+      <span id="shown"></span>
+      <button class="primary" id="download">Download output.csv</button>
+    </div>
+    <table>
+      <thead><tr><th>Ticket</th><th>Layer</th><th>Decision</th><th>Elite</th><th class="rule">Rule</th><th class="txt">Text</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <footer>
+    Your file never leaves your browser: this page runs the same <code>triage.py</code> as the command line,
+    through <a href="https://pyodide.org">Pyodide</a>. The downloaded CSV is the format
+    <code>ticket_id,decision,needs_elite_agent</code>, in the input order.
+    · <a href="https://github.com/tomaszanchetti-ux/velmora-ctsr-triage">Source and tests</a>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let py = null, lastCsv = "", results = [];
+
+async function boot() {
+  try {
+    py = await loadPyodide();
+    const src = await (await fetch("triage.py", { cache: "no-store" })).text();
+    py.FS.writeFile("triage.py", src);
+    py.runPython("import sys; sys.path.insert(0, '.'); import triage, json");
+    setStatus("Ready. Drop a CSV or try the sample.");
+  } catch (e) {
+    setStatus("Could not load Python in the browser: " + e, true);
+  }
+}
+
+function setStatus(msg, err = false) { $("status").textContent = msg; $("status").className = err ? "err" : ""; }
+
+function runTriage(text, name) {
+  if (!py) { setStatus("Python is still loading, try again in a few seconds.", true); return; }
+  try {
+    py.globals.set("csv_text", text);
+    const json = py.runPython(`
+out, res, lines = triage.triage_text(csv_text)
+json.dumps({"csv": out, "results": res, "summary": lines})`);
+    const data = JSON.parse(json);
+    lastCsv = data.csv; results = data.results;
+    render(); setStatus(`${name}: ${results.length} tickets triaged.`);
+  } catch (e) {
+    setStatus("This file could not be triaged: " + String(e).split("\n").filter(Boolean).pop(), true);
+  }
+}
+
+const ORDER = (r) => r.layer + " " + r.ticket_id;
+
+function render() {
+  const total = results.length, elite = results.filter(r => r.needs_elite_agent === "yes").length;
+  $("t-total").textContent = total; $("t-elite").textContent = elite; $("t-out").textContent = total - elite;
+
+  const byDec = {};
+  results.forEach(r => { (byDec[r.decision] ??= { n: 0, layer: r.layer, yes: r.needs_elite_agent }).n++; });
+  const decs = Object.keys(byDec).sort((a, b) => (byDec[a].layer + a).localeCompare(byDec[b].layer + b));
+  const counts = $("counts"); counts.replaceChildren();
+  let layer = null;
+  decs.forEach(d => {
+    if (byDec[d].layer !== layer) {
+      layer = byDec[d].layer;
+      const h = document.createElement("div"); h.className = "layer"; h.textContent = layer; counts.append(h);
+    }
+    const row = document.createElement("div");
+    row.className = "row" + (byDec[d].yes === "yes" ? " yes" : "");
+    const a = document.createElement("span"); a.className = "name"; a.textContent = d;
+    const b = document.createElement("span"); b.className = "n"; b.textContent = byDec[d].n;
+    row.append(a, b); row.onclick = () => { $("f-dec").value = d; draw(); };
+    counts.append(row);
+  });
+
+  const sel = $("f-dec"); sel.length = 1;
+  decs.forEach(d => sel.add(new Option(`${d} (${byDec[d].n})`, d)));
+  $("results").classList.remove("hidden");
+  draw();
+}
+
+function draw() {
+  const dec = $("f-dec").value, onlyElite = $("f-elite").checked, q = $("f-q").value.trim().toLowerCase();
+  const list = results
+    .filter(r => (!dec || r.decision === dec) && (!onlyElite || r.needs_elite_agent === "yes")
+      && (!q || r.ticket_id.toLowerCase().includes(q) || r.text.toLowerCase().includes(q)))
+    .sort((a, b) => ORDER(a).localeCompare(ORDER(b)));
+  const body = $("rows"); body.replaceChildren();
+  list.forEach(r => {
+    const tr = document.createElement("tr"); if (r.needs_elite_agent === "yes") tr.className = "yes";
+    [["id", r.ticket_id], ["", r.layer], ["dec", r.decision], ["el", r.needs_elite_agent],
+     ["rule", r.rule], ["txt", r.text]].forEach(([c, v]) => {
+      const td = document.createElement("td"); if (c) td.className = c; td.textContent = v; tr.append(td);
+    });
+    body.append(tr);
+  });
+  $("shown").textContent = `${list.length} of ${results.length} shown`;
+}
+
+function readFile(f) {
+  if (!f) return;
+  f.text().then(t => runTriage(t, f.name));
+}
+
+$("file").onchange = (e) => readFile(e.target.files[0]);
+$("sample").onclick = async () => runTriage(await (await fetch("sample_tickets.csv", { cache: "no-store" })).text(), "sample_tickets.csv");
+["f-dec", "f-elite", "f-q"].forEach(id => $(id).addEventListener("input", draw));
+$("download").onclick = () => {
+  const url = URL.createObjectURL(new Blob([lastCsv], { type: "text/csv" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: "output.csv" });
+  a.click(); URL.revokeObjectURL(url);
+};
+const drop = $("drop");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); readFile(e.dataTransfer.files[0]); });
+
+boot();
+</script>
+</body>
+</html>
