@@ -145,7 +145,8 @@ json.dumps({"csv": out, "results": res, "summary": lines})`);
   }
 }
 
-const ORDER = (r) => r.layer + " " + r.ticket_id;
+const rank = (layer) => (layer.startsWith("-") ? "9" : "") + layer;  // unclassified goes last
+const ORDER = (r) => rank(r.layer) + " " + r.ticket_id;
 
 function render() {
   const total = results.length, elite = results.filter(r => r.needs_elite_agent === "yes").length;
@@ -153,7 +154,7 @@ function render() {
 
   const byDec = {};
   results.forEach(r => { (byDec[r.decision] ??= { n: 0, layer: r.layer, yes: r.needs_elite_agent }).n++; });
-  const decs = Object.keys(byDec).sort((a, b) => (byDec[a].layer + a).localeCompare(byDec[b].layer + b));
+  const decs = Object.keys(byDec).sort((a, b) => (rank(byDec[a].layer) + a).localeCompare(rank(byDec[b].layer) + b));
   const counts = $("counts"); counts.replaceChildren();
   let layer = null;
   decs.forEach(d => {
